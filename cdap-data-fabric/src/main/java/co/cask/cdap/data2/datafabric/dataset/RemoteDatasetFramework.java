@@ -201,7 +201,7 @@ public class RemoteDatasetFramework implements DatasetFramework {
   }
 
   @Override
-  public void deleteAllInstances(NamespaceId namespaceId) throws DatasetManagementException, IOException {
+  public void deleteAllInstances(NamespaceId namespaceId) throws DatasetManagementException {
     clientCache.getUnchecked(namespaceId).deleteInstances();
   }
 

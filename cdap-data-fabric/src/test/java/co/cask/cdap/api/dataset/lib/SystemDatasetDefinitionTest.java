@@ -43,7 +43,6 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -75,7 +74,7 @@ public class SystemDatasetDefinitionTest {
       "composite", "pedantic", new PedanticDatasetDefinition("pedantic")) {
       @Override
       public Dataset getDataset(DatasetContext datasetContext, DatasetSpecification spec,
-                                Map arguments, ClassLoader classLoader) throws IOException {
+                                Map arguments, ClassLoader classLoader) {
         return null;
       }
     };
