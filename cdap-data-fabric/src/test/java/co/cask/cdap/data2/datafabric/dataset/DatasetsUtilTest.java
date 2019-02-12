@@ -70,10 +70,6 @@ public class DatasetsUtilTest extends DatasetServiceTestBase {
               .setRowKeyExploreName("x").setRowKeyExploreType(Schema.Type.STRING)
               .setConflictDetection(ConflictDetection.NONE).build());
 
-    testFix("lineageDataset",
-            DatasetProperties.EMPTY);
-    testFix(LineageTable.class.getName(),
-            TableProperties.builder().setTTL(1000).build());
     testFix(UsageDataset.class.getSimpleName(), DatasetProperties.EMPTY);
 
     testFix("table",
