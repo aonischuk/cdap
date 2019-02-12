@@ -36,7 +36,6 @@ import co.cask.cdap.common.metrics.NoOpMetricsSystemClient;
 import co.cask.cdap.common.service.Services;
 import co.cask.cdap.common.utils.ProjectInfo;
 import co.cask.cdap.common.zookeeper.coordination.DiscoverableCodec;
-import co.cask.cdap.config.DefaultConfigStore;
 import co.cask.cdap.data.runtime.DataFabricModules;
 import co.cask.cdap.data.runtime.DataSetsModules;
 import co.cask.cdap.data.runtime.SystemDatasetRuntimeModule;
@@ -47,7 +46,6 @@ import co.cask.cdap.data2.dataset2.DatasetFramework;
 import co.cask.cdap.data2.dataset2.DefaultDatasetDefinitionRegistryFactory;
 import co.cask.cdap.data2.dataset2.InMemoryDatasetFramework;
 import co.cask.cdap.data2.dataset2.lib.hbase.AbstractHBaseDataSetAdmin;
-import co.cask.cdap.data2.metadata.lineage.LineageDataset;
 import co.cask.cdap.data2.metadata.lineage.field.FieldLineageDataset;
 import co.cask.cdap.data2.metadata.store.DefaultMetadataStore;
 import co.cask.cdap.data2.metadata.writer.FieldLineageWriter;
@@ -73,7 +71,6 @@ import co.cask.cdap.security.auth.context.AuthenticationContextModules;
 import co.cask.cdap.security.authorization.AuthorizationEnforcementModule;
 import co.cask.cdap.security.guice.SecureStoreServerModule;
 import co.cask.cdap.security.impersonation.SecurityUtil;
-import co.cask.cdap.store.DefaultOwnerStore;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -478,7 +475,6 @@ public class UpgradeTool {
 
     // metadata and lineage
     DefaultMetadataStore.setupDatasets(datasetFramework);
-    LineageDataset.setupDatasets(datasetFramework);
     FieldLineageDataset.setupDatasets(datasetFramework);
     // app metadata
     DefaultStore.setupDatasets(datasetFramework);

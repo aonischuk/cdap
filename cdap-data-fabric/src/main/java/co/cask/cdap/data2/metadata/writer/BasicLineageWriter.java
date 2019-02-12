@@ -22,7 +22,7 @@ import co.cask.cdap.data.dataset.SystemDatasetInstantiator;
 import co.cask.cdap.data2.dataset2.DatasetFramework;
 import co.cask.cdap.data2.dataset2.MultiThreadDatasetCache;
 import co.cask.cdap.data2.metadata.lineage.AccessType;
-import co.cask.cdap.data2.metadata.lineage.LineageDataset;
+import co.cask.cdap.data2.metadata.lineage.LineageTable;
 import co.cask.cdap.data2.metadata.lineage.field.FieldLineageDataset;
 import co.cask.cdap.data2.metadata.lineage.field.FieldLineageInfo;
 import co.cask.cdap.data2.transaction.TransactionSystemClientAdapter;
@@ -31,6 +31,9 @@ import co.cask.cdap.proto.id.DatasetId;
 import co.cask.cdap.proto.id.NamespaceId;
 import co.cask.cdap.proto.id.NamespacedEntityId;
 import co.cask.cdap.proto.id.ProgramRunId;
+import co.cask.cdap.spi.data.transaction.TransactionRunner;
+import co.cask.cdap.spi.data.transaction.TransactionRunners;
+import co.cask.cdap.store.StoreDefinition;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.inject.Inject;
@@ -43,7 +46,7 @@ import javax.annotation.Nullable;
 
 /**
  * Basic implementation of {@link LineageWriter} and {@link FieldLineageWriter}.
- * Implementation of LineageWriter write to the {@link LineageDataset} where as
+ * Implementation of LineageWriter write to the {@link LineageTable} where as
  * implementation of FieldLineageWriter writes to the {@link FieldLineageDataset} directly.
  */
 public class BasicLineageWriter implements LineageWriter, FieldLineageWriter {
@@ -52,10 +55,12 @@ public class BasicLineageWriter implements LineageWriter, FieldLineageWriter {
 
   private final DatasetFramework datasetFramework;
   private final Transactional transactional;
+  private final TransactionRunner transactionRunner;
 
   @VisibleForTesting
   @Inject
-  public BasicLineageWriter(DatasetFramework datasetFramework, TransactionSystemClient txClient) {
+  public BasicLineageWriter(DatasetFramework datasetFramework, TransactionSystemClient txClient,
+                            TransactionRunner transactionRunner) {
     this.datasetFramework = datasetFramework;
     this.transactional = Transactions.createTransactionalWithRetry(
       Transactions.createTransactional(new MultiThreadDatasetCache(
@@ -63,33 +68,27 @@ public class BasicLineageWriter implements LineageWriter, FieldLineageWriter {
         NamespaceId.SYSTEM, ImmutableMap.of(), null, null)),
       RetryStrategies.retryOnConflict(20, 100)
     );
+    this.transactionRunner = transactionRunner;
   }
 
   @Override
   public void addAccess(ProgramRunId run, DatasetId datasetId, AccessType accessType,
-                        @Nullable NamespacedEntityId component) {
+                        @Nullable NamespacedEntityId namespacedEntityId) {
     // Don't record lineage for the lineage dataset itself, otherwise there would be infinite recursion
-    if (getLineageDatasetId().equals(datasetId)) {
+    if (StoreDefinition.LineageStore.DATASET_LINEAGE_TABLE.equals(datasetId)
+      || StoreDefinition.LineageStore.PROGRAM_LINEAGE_TABLE.equals(datasetId)) {
       return;
     }
 
     long accessTime = System.currentTimeMillis();
-    LOG.trace("Writing access for run {}, dataset {}, accessType {}, component {}, accessTime = {}",
-              run, datasetId, accessType, component, accessTime);
+    LOG.trace("Writing access for run {}, dataset {}, accessType {}, accessTime = {}",
+              run, datasetId, accessType, accessTime);
 
-    Transactionals.execute(transactional, context -> {
-      LineageDataset
-        .getLineageDataset(context, datasetFramework, getLineageDatasetId())
-        .addAccess(run, datasetId, accessType, accessTime, component);
+    TransactionRunners.run(transactionRunner, context -> {
+      LineageTable
+        .getLineageDataset(context)
+        .addAccess(run, datasetId, accessType, accessTime);
     });
-  }
-
-  /**
-   * Returns the {@link DatasetId} of the lineage dataset. This method should only be overridden in unit-test.
-   */
-  @VisibleForTesting
-  protected DatasetId getLineageDatasetId() {
-    return LineageDataset.LINEAGE_DATASET_ID;
   }
 
   /**

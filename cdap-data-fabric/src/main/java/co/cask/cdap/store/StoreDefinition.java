@@ -67,6 +67,9 @@ public final class StoreDefinition {
     if (overWrite || tableAdmin.getSpecification(ProfileStore.PROFILE_STORE_TABLE) == null) {
       ProfileStore.createTables(tableAdmin);
     }
+    if (overWrite || tableAdmin.getSpecification(LineageStore.PROGRAM_LINEAGE_TABLE) == null) {
+      LineageStore.createTable(tableAdmin);
+    }
   }
 
   public static void createAllTables(StructuredTableAdmin tableAdmin, StructuredTableRegistry registry)
@@ -258,6 +261,7 @@ public final class StoreDefinition {
       tableAdmin.create(OWNER_TABLE_SPEC);
     }
   }
+
   /**
    * Schema for {@link SecretStore}.
    */
@@ -404,6 +408,7 @@ public final class StoreDefinition {
    * Table schema for profile store.
    */
   public static final class ProfileStore {
+
     public static final StructuredTableId PROFILE_STORE_TABLE =
       new StructuredTableId("profile_store");
     public static final StructuredTableId PROFILE_ENTITY_STORE_TABLE =
@@ -437,6 +442,64 @@ public final class StoreDefinition {
     public static void createTables(StructuredTableAdmin tableAdmin) throws IOException, TableAlreadyExistsException {
       tableAdmin.create(PROFILE_STORE_SPEC);
       tableAdmin.create(PROFILE_ENTITY_STORE_SPEC);
+    }
+  }
+
+  /**
+   * Schema for {@link LineageTable}.
+   */
+  public static final class LineageStore {
+    public static final StructuredTableId DATASET_LINEAGE_TABLE = new StructuredTableId("dataset_lineage");
+    public static final StructuredTableId PROGRAM_LINEAGE_TABLE = new StructuredTableId("program_lineage");
+    public static final String NAMESPACE_FIELD = "namespace";
+    public static final String DATASET_FIELD = "dataset";
+    public static final String START_TIME_FIELD = "start_time";
+    public static final String PROGRAM_NAMESPACE_FIELD = "program_namespace";
+    public static final String PROGRAM_PARENT_FIELD = "program_parent";
+    public static final String PROGRAM_TYPE_FIELD = "program_type";
+    public static final String PROGRAM_FIELD = "program";
+    public static final String RUN_FIELD = "run";
+    public static final String ACCESS_TYPE_FIELD = "access_type";
+    public static final String ACCESS_TIME_FIELD = "access_time";
+
+
+
+
+    public static final StructuredTableSpecification DATASET_LINEAGE_SPEC = new StructuredTableSpecification.Builder()
+      .withId(DATASET_LINEAGE_TABLE)
+      .withFields(Fields.stringType(NAMESPACE_FIELD),
+                  Fields.stringType(DATASET_FIELD),
+                  Fields.longType(START_TIME_FIELD),
+                  Fields.stringType(PROGRAM_NAMESPACE_FIELD),
+                  Fields.stringType(PROGRAM_PARENT_FIELD),
+                  Fields.stringType(PROGRAM_TYPE_FIELD),
+                  Fields.stringType(PROGRAM_FIELD),
+                  Fields.stringType(RUN_FIELD),
+                  Fields.stringType(ACCESS_TYPE_FIELD),
+                  Fields.longType(ACCESS_TIME_FIELD))
+      .withPrimaryKeys(NAMESPACE_FIELD, DATASET_FIELD, START_TIME_FIELD, PROGRAM_NAMESPACE_FIELD, PROGRAM_PARENT_FIELD,
+                       PROGRAM_TYPE_FIELD, PROGRAM_FIELD, RUN_FIELD, ACCESS_TYPE_FIELD)
+      .build();
+
+    public static final StructuredTableSpecification PROGRAM_LINEAGE_SPEC = new StructuredTableSpecification.Builder()
+      .withId(PROGRAM_LINEAGE_TABLE)
+      .withFields(Fields.stringType(PROGRAM_NAMESPACE_FIELD),
+                  Fields.stringType(PROGRAM_PARENT_FIELD),
+                  Fields.stringType(PROGRAM_TYPE_FIELD),
+                  Fields.stringType(PROGRAM_FIELD),
+                  Fields.longType(START_TIME_FIELD),
+                  Fields.stringType(NAMESPACE_FIELD),
+                  Fields.stringType(DATASET_FIELD),
+                  Fields.stringType(RUN_FIELD),
+                  Fields.stringType(ACCESS_TYPE_FIELD),
+                  Fields.longType(ACCESS_TIME_FIELD))
+      .withPrimaryKeys(PROGRAM_NAMESPACE_FIELD, PROGRAM_PARENT_FIELD, PROGRAM_TYPE_FIELD, PROGRAM_FIELD,
+                       START_TIME_FIELD, NAMESPACE_FIELD, DATASET_FIELD, RUN_FIELD, ACCESS_TYPE_FIELD)
+      .build();
+
+    public static void createTable(StructuredTableAdmin tableAdmin) throws IOException, TableAlreadyExistsException {
+      tableAdmin.create(DATASET_LINEAGE_SPEC);
+      tableAdmin.create(PROGRAM_LINEAGE_SPEC);
     }
   }
 }

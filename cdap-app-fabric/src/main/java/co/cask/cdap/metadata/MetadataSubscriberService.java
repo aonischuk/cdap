@@ -33,7 +33,7 @@ import co.cask.cdap.data.dataset.SystemDatasetInstantiator;
 import co.cask.cdap.data2.dataset2.DatasetFramework;
 import co.cask.cdap.data2.dataset2.MultiThreadDatasetCache;
 import co.cask.cdap.data2.metadata.dataset.MetadataDataset;
-import co.cask.cdap.data2.metadata.lineage.LineageDataset;
+import co.cask.cdap.data2.metadata.lineage.LineageTable;
 import co.cask.cdap.data2.metadata.lineage.field.FieldLineageDataset;
 import co.cask.cdap.data2.metadata.lineage.field.FieldLineageInfo;
 import co.cask.cdap.data2.metadata.store.MetadataStore;
@@ -106,7 +106,6 @@ public class MetadataSubscriberService extends AbstractMessagingSubscriberServic
   private final MultiThreadMessagingContext messagingContext;
   private final TransactionRunner transactionRunner;
 
-  private DatasetId lineageDatasetId = LineageDataset.LINEAGE_DATASET_ID;
   private DatasetId fieldLineageDatasetId = FieldLineageDataset.FIELD_LINEAGE_DATASET_ID;
   private DatasetId usageDatasetId = UsageDataset.USAGE_INSTANCE_ID;
 
@@ -246,14 +245,14 @@ public class MetadataSubscriberService extends AbstractMessagingSubscriberServic
    */
   private final class DataAccessLineageProcessor implements MetadataMessageProcessor {
 
-    private final LineageDataset lineageDataset;
+    private final LineageTable lineageTable;
 
-    DataAccessLineageProcessor(DatasetContext datasetContext) {
-      this.lineageDataset = LineageDataset.getLineageDataset(datasetContext, datasetFramework, lineageDatasetId);
+    DataAccessLineageProcessor(StructuredTableContext context) {
+      this.lineageTable = LineageTable.getLineageDataset(context);
     }
 
     @Override
-    public void processMessage(MetadataMessage message) {
+    public void processMessage(MetadataMessage message) throws IOException {
       if (!(message.getEntityId() instanceof ProgramRunId)) {
         LOG.warn("Missing program run id from the lineage access information. Ignoring the message {}", message);
         return;
@@ -262,8 +261,7 @@ public class MetadataSubscriberService extends AbstractMessagingSubscriberServic
       DataAccessLineage lineage = message.getPayload(GSON, DataAccessLineage.class);
       ProgramRunId programRunId = (ProgramRunId) message.getEntityId();
 
-      lineageDataset.addAccess(programRunId, lineage.getDatasetId(),
-                               lineage.getAccessType(), lineage.getAccessTime(), lineage.getComponentId());
+      lineageTable.addAccess(programRunId, lineage.getDatasetId(), lineage.getAccessType(), lineage.getAccessTime());
     }
   }
 

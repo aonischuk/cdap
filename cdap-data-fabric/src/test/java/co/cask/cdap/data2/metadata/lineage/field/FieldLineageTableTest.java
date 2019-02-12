@@ -48,7 +48,7 @@ import java.util.Set;
 /**
  * Test for storage and retrieval of the field lineage operations.
  */
-public class FieldLineageDatasetTest {
+public class FieldLineageTableTest {
   @ClassRule
   public static DatasetFrameworkTestUtil dsFrameworkUtil = new DatasetFrameworkTestUtil();
 
