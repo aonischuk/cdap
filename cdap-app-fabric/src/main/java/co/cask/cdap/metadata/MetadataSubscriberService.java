@@ -206,7 +206,7 @@ public class MetadataSubscriberService extends AbstractMessagingSubscriberServic
       MetadataMessageProcessor processor = processors.computeIfAbsent(message.getType(), type -> {
         switch (type) {
           case LINEAGE:
-            return new DataAccessLineageProcessor(datasetContext);
+            return new DataAccessLineageProcessor();
           case FIELD_LINEAGE:
             return new FieldLineageProcessor(datasetContext);
           case USAGE:
@@ -245,14 +245,10 @@ public class MetadataSubscriberService extends AbstractMessagingSubscriberServic
    */
   private final class DataAccessLineageProcessor implements MetadataMessageProcessor {
 
-    private final LineageTable lineageTable;
-
-    DataAccessLineageProcessor(StructuredTableContext context) {
-      this.lineageTable = LineageTable.getLineageDataset(context);
-    }
+    DataAccessLineageProcessor() {}
 
     @Override
-    public void processMessage(MetadataMessage message) throws IOException {
+    public void processMessage(MetadataMessage message) {
       if (!(message.getEntityId() instanceof ProgramRunId)) {
         LOG.warn("Missing program run id from the lineage access information. Ignoring the message {}", message);
         return;
@@ -260,8 +256,10 @@ public class MetadataSubscriberService extends AbstractMessagingSubscriberServic
 
       DataAccessLineage lineage = message.getPayload(GSON, DataAccessLineage.class);
       ProgramRunId programRunId = (ProgramRunId) message.getEntityId();
-
-      lineageTable.addAccess(programRunId, lineage.getDatasetId(), lineage.getAccessType(), lineage.getAccessTime());
+      TransactionRunners.run(transactionRunner, context -> {
+        LineageTable lineageTable = LineageTable.getLineageDataset(context);
+        lineageTable.addAccess(programRunId, lineage.getDatasetId(), lineage.getAccessType(), lineage.getAccessTime());
+      });
     }
   }
 

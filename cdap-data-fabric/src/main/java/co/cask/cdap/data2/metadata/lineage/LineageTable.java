@@ -79,7 +79,7 @@ public class LineageTable {
   }
 
   @VisibleForTesting
-  void deleteAll() throws IOException {
+  public void deleteAll() throws IOException {
     datasetTable.deleteAll(Range.all());
     programTable.deleteAll(Range.all());
   }
