@@ -54,8 +54,7 @@ public class InMemoryTableService {
 
   public static synchronized void create(String tableName) {
     if (!tables.containsKey(tableName)) {
-      tables.put(tableName, new ConcurrentSkipListMap<byte[],
-        NavigableMap<byte[], NavigableMap<Long, Update>>>(Bytes.BYTES_COMPARATOR));
+      tables.put(tableName, new ConcurrentSkipListMap<>(Bytes.BYTES_COMPARATOR));
     }
   }
 

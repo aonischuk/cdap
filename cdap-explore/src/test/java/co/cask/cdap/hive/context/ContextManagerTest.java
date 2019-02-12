@@ -25,7 +25,7 @@ import org.junit.Test;
 public class ContextManagerTest {
 
   @Test
-  public void testInjector() throws Exception {
+  public void testInjector() {
     ContextManager.createInjector(CConfiguration.create(), new Configuration());
   }
 }

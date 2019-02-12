@@ -23,6 +23,7 @@ import co.cask.cdap.data2.metadata.dataset.SearchRequest;
 import co.cask.cdap.proto.metadata.MetadataSearchResponse;
 import com.google.common.collect.ImmutableSet;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -31,6 +32,16 @@ import java.util.Set;
  * Implementation of {@link MetadataStore} used in memory mode.
  */
 public class NoOpMetadataStore implements MetadataStore {
+
+  @Override
+  public void createIndex() throws IOException {
+    // no-op
+  }
+
+  @Override
+  public void dropIndex() throws IOException {
+    // no-op
+  }
 
   @Override
   public void replaceMetadata(MetadataScope scope, MetadataDataset.Record metadata,

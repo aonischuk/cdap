@@ -93,7 +93,7 @@ public class HiveExploreServiceFileSetTestRun extends BaseHiveExploreServiceTest
 
   @BeforeClass
   public static void start() throws Exception {
-    initialize(CConfiguration.create(), tmpFolder, false, false);
+    initialize(CConfiguration.create(), tmpFolder, false);
   }
 
   @After

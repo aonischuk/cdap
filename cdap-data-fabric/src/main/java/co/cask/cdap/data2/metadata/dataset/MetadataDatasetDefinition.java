@@ -42,7 +42,7 @@ public class MetadataDatasetDefinition
 
   private final DatasetDefinition<? extends IndexedTable, ?> indexedTableDef;
 
-  MetadataDatasetDefinition(String name, DatasetDefinition<? extends IndexedTable, ?> indexedTableDef) {
+  public MetadataDatasetDefinition(String name, DatasetDefinition<? extends IndexedTable, ?> indexedTableDef) {
     super(name);
     this.indexedTableDef = indexedTableDef;
   }

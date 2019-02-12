@@ -23,7 +23,6 @@ import co.cask.cdap.common.guice.ConfigModule;
 import co.cask.cdap.common.guice.InMemoryDiscoveryModule;
 import co.cask.cdap.common.guice.NonCustomLocationUnitTestModule;
 import co.cask.cdap.data.runtime.DataFabricLevelDBModule;
-import co.cask.cdap.data.runtime.DataSetsModules;
 import co.cask.cdap.data.runtime.TransactionMetricsModule;
 import co.cask.cdap.data2.util.TableId;
 import co.cask.cdap.security.auth.context.AuthenticationContextModules;
@@ -59,7 +58,6 @@ public class LevelDBTableServiceTest {
       new ConfigModule(conf),
       new NonCustomLocationUnitTestModule(),
       new InMemoryDiscoveryModule(),
-      new DataSetsModules().getStandaloneModules(),
       new DataFabricLevelDBModule(),
       new TransactionMetricsModule(),
       new AuthorizationTestModule(),
