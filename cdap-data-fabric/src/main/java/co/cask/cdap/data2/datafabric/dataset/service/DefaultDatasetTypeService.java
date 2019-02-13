@@ -81,8 +81,6 @@ public class DefaultDatasetTypeService extends AbstractIdleService implements Da
   private final NamespaceQueryAdmin namespaceQueryAdmin;
   private final NamespacePathLocator namespacePathLocator;
   private final TransactionRunner transactionRunner;
-  private final StructuredTableAdmin structuredTableAdmin;
-  private final StructuredTableRegistry structuredTableRegistry;
 
   private final CConfiguration cConf;
   private final Impersonator impersonator;
@@ -98,9 +96,7 @@ public class DefaultDatasetTypeService extends AbstractIdleService implements Da
                                    TransactionSystemClientService txClientService,
                                    TransactionRunner transactionRunner,
                                    @Constants.Dataset.Manager.DefaultDatasetModules
-                                       Map<String, DatasetModule> modules,
-                                   StructuredTableAdmin structuredTableAdmin,
-                                   StructuredTableRegistry structuredTableRegistry) {
+                                       Map<String, DatasetModule> modules) {
     this.typeManager = typeManager;
     this.namespaceQueryAdmin = namespaceQueryAdmin;
     this.namespacePathLocator = namespacePathLocator;
@@ -110,15 +106,11 @@ public class DefaultDatasetTypeService extends AbstractIdleService implements Da
     this.defaultModules = new LinkedHashMap<>(modules);
     this.extensionModules = getExtensionModules(cConf);
     this.transactionRunner = transactionRunner;
-    this.structuredTableAdmin = structuredTableAdmin;
-    this.structuredTableRegistry = structuredTableRegistry;
   }
 
   @Override
   protected void startUp() throws Exception {
     txClientService.startAndWait();
-    structuredTableRegistry.initialize();
-    StoreDefinition.createAllTables(structuredTableAdmin, structuredTableRegistry);
     deleteSystemModules();
     deployDefaultModules();
     if (!extensionModules.isEmpty()) {

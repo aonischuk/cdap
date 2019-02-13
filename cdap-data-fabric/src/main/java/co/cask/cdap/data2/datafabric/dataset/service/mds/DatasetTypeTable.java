@@ -1,5 +1,5 @@
 /*
- * Copyright © 2014-2016 Cask Data, Inc.
+ * Copyright © 2014-2019 Cask Data, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
@@ -55,18 +55,33 @@ public class DatasetTypeTable {
 
   private static final Gson GSON = new Gson();
 
-  private final StructuredTable typeTable;
-  private final StructuredTable moduleTable;
+  private final StructuredTableContext structuredTableContext;
 
-  public DatasetTypeTable(StructuredTable moduleTable, StructuredTable typeTable) {
-    this.moduleTable = moduleTable;
-    this.typeTable = typeTable;
+  private StructuredTable typeTable;
+  private StructuredTable moduleTable;
+
+  private DatasetTypeTable(StructuredTableContext structuredTableContext) {
+    this.structuredTableContext = structuredTableContext;
   }
 
-  public static DatasetTypeTable create(StructuredTableContext context) throws TableNotFoundException {
-    return new DatasetTypeTable(context.getTable(StoreDefinition.DatasetTypeStore.MODULE_TYPES),
-                                context.getTable(StoreDefinition.DatasetTypeStore.DATASET_TYPES));
+  public static DatasetTypeTable create(StructuredTableContext context) {
+    return new DatasetTypeTable(context);
   }
+
+  private StructuredTable getTypeTable() {
+    if (typeTable == null) {
+      typeTable = structuredTableContext.getTable(StoreDefinition.DatasetTypeStore.DATASET_TYPES);
+    }
+    return typeTable;
+  }
+
+  private StructuredTable getModuleTable() {
+    if (moduleTable == null) {
+      moduleTable = structuredTableContext.getTable(StoreDefinition.DatasetTypeStore.MODULE_TYPES);
+    }
+    return moduleTable;
+  }
+
 
   /**
    * Retrieves a module from the given namespace
@@ -77,7 +92,7 @@ public class DatasetTypeTable {
   @Nullable
   public DatasetModuleMeta getModule(DatasetModuleId datasetModuleId) throws IOException {
     return get(getModuleKey(datasetModuleId.getNamespace(), datasetModuleId.getEntityName()),
-               moduleTable, DatasetModuleMeta.class);
+               getModuleTable(), DatasetModuleMeta.class);
   }
 
   /**
@@ -101,12 +116,11 @@ public class DatasetTypeTable {
   @Nullable
   public DatasetModuleMeta getModuleByType(DatasetTypeId datasetTypeId) throws IOException {
     DatasetModuleId datasetModuleId =
-      get(getTypeKey(datasetTypeId.getNamespace(), datasetTypeId.getEntityName()), typeTable, DatasetModuleId.class);
+      get(getTypeKey(datasetTypeId.getNamespace(), datasetTypeId.getEntityName()), getTypeTable(), DatasetModuleId.class);
 
     if (datasetModuleId == null) {
       return null;
     }
-    // TODO: Slightly strange. Maybe change signature to accept NamespaceId separately from typeName
     return getModule(datasetModuleId);
   }
 
@@ -119,13 +133,13 @@ public class DatasetTypeTable {
   }
 
   public Collection<DatasetModuleMeta> getModules(NamespaceId namespaceId) throws IOException {
-    return list(getModulePrefix(namespaceId.getEntityName()), moduleTable, DatasetModuleMeta.class);
+    return list(getModulePrefix(namespaceId.getEntityName()), getModuleTable(), DatasetModuleMeta.class);
   }
 
   public Collection<DatasetTypeMeta> getTypes(NamespaceId namespaceId) throws IOException {
     List<DatasetTypeMeta> types = Lists.newArrayList();
     try (CloseableIterator<StructuredRow> iterator =
-      typeTable.scan(Range.singleton(getModulePrefix(namespaceId.getEntityName())), Integer.MAX_VALUE)) {
+      getTypeTable().scan(Range.singleton(getModulePrefix(namespaceId.getEntityName())), Integer.MAX_VALUE)) {
       while (iterator.hasNext()) {
         StructuredRow row = iterator.next();
         String typeName = row.getString(StoreDefinition.DatasetTypeStore.TYPE_NAME_FIELD);
@@ -143,7 +157,7 @@ public class DatasetTypeTable {
     DatasetModuleMeta existing = getModule(datasetModuleId);
     List<Field<?>> fields = getModuleKey(namespaceId.getEntityName(), moduleMeta.getName());
     fields.add(Fields.stringField(StoreDefinition.DatasetTypeStore.DATASET_METADATA_FIELD, GSON.toJson(moduleMeta)));
-    moduleTable.upsert(fields);
+    getModuleTable().upsert(fields);
     for (String type : moduleMeta.getTypes()) {
       writeTypeToModuleMapping(namespaceId.datasetType(type), datasetModuleId);
     }
@@ -151,7 +165,7 @@ public class DatasetTypeTable {
       Set<String> removed = new HashSet<>(existing.getTypes());
       removed.removeAll(moduleMeta.getTypes());
       for (String type : removed) {
-        typeTable.deleteAll(Range.singleton(getTypeKey(datasetModuleId.getNamespace(), type)));
+        getTypeTable().deleteAll(Range.singleton(getTypeKey(datasetModuleId.getNamespace(), type)));
       }
     }
   }
@@ -163,11 +177,11 @@ public class DatasetTypeTable {
       return;
     }
 
-    moduleTable.deleteAll(
+    getModuleTable().deleteAll(
       Range.singleton(getModuleKey(datasetModuleId.getNamespace(), datasetModuleId.getEntityName())));
 
     for (String type : module.getTypes()) {
-      typeTable.deleteAll(Range.singleton(getTypeKey(datasetModuleId.getNamespace(), type)));
+      getTypeTable().deleteAll(Range.singleton(getTypeKey(datasetModuleId.getNamespace(), type)));
     }
   }
 
@@ -207,7 +221,7 @@ public class DatasetTypeTable {
     List<Field<?>> fields = getTypeKey(datasetTypeId.getNamespace(), datasetTypeId.getEntityName());
     fields.add(Fields.stringField(
       StoreDefinition.DatasetTypeStore.DATASET_METADATA_FIELD, GSON.toJson(datasetModuleId)));
-    typeTable.upsert(fields);
+    getTypeTable().upsert(fields);
   }
 
   private List<Field<?>> getModulePrefix(String namespace) {

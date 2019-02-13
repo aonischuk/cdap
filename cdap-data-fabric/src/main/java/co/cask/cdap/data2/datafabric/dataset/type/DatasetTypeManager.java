@@ -62,10 +62,12 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.IllegalFormatException;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 /**
@@ -170,14 +172,10 @@ public class DatasetTypeManager {
           if (!instances.isEmpty()) {
             throw new DatasetModuleConflictException(String.format(
               "Attempt to remove dataset types %s from module '%s' that have existing instances: %s. " +
-                "Delete them first.", removedTypes, datasetModuleId, Iterables.toString(
-                Iterables.transform(instances, new Function<DatasetSpecification, String>() {
-                  @Nullable
-                  @Override
-                  public String apply(@Nullable DatasetSpecification input) {
-                    return input.getName() + ":" + input.getType();
-                  }
-                }))));
+                "Delete them first.", removedTypes, datasetModuleId,
+              instances.stream()
+                .map(input -> input.getName() + ":" + input.getType())
+                .collect(Collectors.joining(", "))));
           }
         }
 
@@ -186,9 +184,11 @@ public class DatasetTypeManager {
         Set<String> moduleDependencies = new LinkedHashSet<String>();
         for (DatasetTypeId usedType : reg.getUsedTypes()) {
           DatasetModuleMeta usedModule = datasetTypeTable.getModuleByType(usedType);
-          Preconditions.checkState(usedModule != null,
-                                   String.format("Found a null used module for type %s for while adding module %s",
-                                                 usedType, datasetModuleId));
+          if (usedModule != null) {
+            throw new IllegalStateException(
+              String.format("Found a null used module for type %s for while adding module %s",
+                            usedType, datasetModuleId));
+          }
           // adding all used types and the module itself, in this very order to keep the order of loading modules
           // for instantiating a type
           moduleDependencies.addAll(usedModule.getUsesModules());
@@ -330,12 +330,9 @@ public class DatasetTypeManager {
         try {
           // Also delete module jar
           Location moduleJarLocation =
-            impersonator.doAs(datasetModuleId, new Callable<Location>() {
-              @Override
-              public Location call() throws Exception {
-                return Locations.getLocationFromAbsolutePath(locationFactory, module.getJarLocationPath());
-              }
-            });
+            impersonator.doAs(datasetModuleId,
+                              () -> Locations.getLocationFromAbsolutePath(locationFactory,
+                                                                          module.getJarLocationPath()));
           if (!moduleJarLocation.delete()) {
             LOG.debug("Could not delete dataset module archive");
           }

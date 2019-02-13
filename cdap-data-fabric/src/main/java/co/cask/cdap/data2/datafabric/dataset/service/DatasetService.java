@@ -69,8 +69,6 @@ public class DatasetService extends AbstractExecutionThreadService {
   private final Set<DatasetMetricsReporter> metricReporters;
   private final DatasetTypeService typeService;
   private final CConfiguration cConf;
-  private final StructuredTableAdmin structuredTableAdmin;
-  private final StructuredTableRegistry structuredTableRegistry;
 
   private Cancellable cancelDiscovery;
   private Cancellable opExecutorServiceWatch;
@@ -85,9 +83,7 @@ public class DatasetService extends AbstractExecutionThreadService {
                         DatasetOpExecutor opExecutorClient,
                         Set<DatasetMetricsReporter> metricReporters,
                         DatasetTypeService datasetTypeService,
-                        DatasetInstanceService datasetInstanceService,
-                        StructuredTableAdmin structuredTableAdmin,
-                        StructuredTableRegistry structuredTableRegistry) {
+                        DatasetInstanceService datasetInstanceService) {
     this.cConf = cConf;
     this.typeService = datasetTypeService;
     DatasetTypeHandler datasetTypeHandler = new DatasetTypeHandler(datasetTypeService);
@@ -125,15 +121,11 @@ public class DatasetService extends AbstractExecutionThreadService {
     this.discoveryServiceClient = discoveryServiceClient;
     this.opExecutorClient = opExecutorClient;
     this.metricReporters = metricReporters;
-    this.structuredTableAdmin = structuredTableAdmin;
-    this.structuredTableRegistry = structuredTableRegistry;
   }
 
   @Override
   protected void startUp() throws Exception {
     LOG.info("Starting DatasetService...");
-    structuredTableRegistry.initialize();
-    StoreDefinition.createAllTables(structuredTableAdmin, structuredTableRegistry);
     typeService.startAndWait();
     opExecutorClient.startAndWait();
     httpService.start();

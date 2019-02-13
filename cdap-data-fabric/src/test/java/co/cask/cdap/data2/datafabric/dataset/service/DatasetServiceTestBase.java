@@ -70,6 +70,7 @@ import co.cask.cdap.security.spi.authorization.AuthorizationEnforcer;
 import co.cask.cdap.spi.data.StructuredTableAdmin;
 import co.cask.cdap.spi.data.table.StructuredTableRegistry;
 import co.cask.cdap.spi.data.transaction.TransactionRunner;
+import co.cask.cdap.store.StoreDefinition;
 import co.cask.common.ContentProvider;
 import co.cask.common.http.HttpRequest;
 import co.cask.common.http.HttpRequests;
@@ -190,6 +191,9 @@ public abstract class DatasetServiceTestBase {
     // Tx Manager to support working with datasets
     txManager = injector.getInstance(TransactionManager.class);
     txManager.startAndWait();
+    StructuredTableAdmin structuredTableAdmin = injector.getInstance(StructuredTableAdmin.class);
+    StructuredTableRegistry structuredTableRegistry = injector.getInstance(StructuredTableRegistry.class);
+    StoreDefinition.createAllTables(structuredTableAdmin, structuredTableRegistry);
     TransactionSystemClient txSystemClient = injector.getInstance(TransactionSystemClient.class);
     TransactionSystemClientService txSystemClientService =
       new DelegatingTransactionSystemClientService(txSystemClient);
@@ -230,13 +234,10 @@ public abstract class DatasetServiceTestBase {
     DatasetOpExecutor opExecutor = new InMemoryDatasetOpExecutor(dsFramework);
     DatasetInstanceManager instanceManager =
       new DatasetInstanceManager(transactionRunner);
-    StructuredTableAdmin structuredTableAdmin = injector.getInstance(StructuredTableAdmin.class);
-    StructuredTableRegistry structuredTableRegistry = injector.getInstance(StructuredTableRegistry.class);
 
     DatasetTypeService noAuthTypeService = new DefaultDatasetTypeService(
       typeManager, namespaceAdmin, namespacePathLocator,
-      cConf, impersonator, txSystemClientService, transactionRunner, defaultModules, structuredTableAdmin,
-      structuredTableRegistry);
+      cConf, impersonator, txSystemClientService, transactionRunner, defaultModules);
     DatasetTypeService typeService = new AuthorizationDatasetTypeService(noAuthTypeService, authEnforcer,
                                                                          authenticationContext);
 
@@ -246,8 +247,7 @@ public abstract class DatasetServiceTestBase {
                                                  authenticationContext, new NoOpMetadataPublisher());
 
     service = new DatasetService(cConf, discoveryService, discoveryServiceClient, metricsCollectionService,
-                                 opExecutor, new HashSet<>(), typeService, instanceService,
-                                 structuredTableAdmin, structuredTableRegistry);
+                                 opExecutor, new HashSet<>(), typeService, instanceService);
 
     // Start dataset service, wait for it to be discoverable
     service.startAndWait();

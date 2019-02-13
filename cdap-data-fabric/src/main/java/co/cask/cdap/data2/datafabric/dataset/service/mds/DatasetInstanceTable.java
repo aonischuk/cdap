@@ -62,8 +62,8 @@ public final class DatasetInstanceTable {
     Optional<StructuredRow> row =
       table.read(
         ImmutableList.of(Fields.stringField(StoreDefinition.DatasetInstanceStore.NAMESPACE_FIELD,
-                                            id.getParent().getEntityName()),
-                         Fields.stringField(StoreDefinition.DatasetInstanceStore.DATASET_FIELD, id.getEntityName())));
+                                            id.getNamespace()),
+                         Fields.stringField(StoreDefinition.DatasetInstanceStore.DATASET_FIELD, id.getDataset())));
     if (!row.isPresent()) {
       return null;
     }
@@ -87,12 +87,15 @@ public final class DatasetInstanceTable {
     }
     table.delete(
       ImmutableList.of(Fields.stringField(StoreDefinition.DatasetInstanceStore.NAMESPACE_FIELD,
-                                          datasetInstanceId.getParent().getEntityName()),
+                                          datasetInstanceId.getNamespace()),
                        Fields.stringField(StoreDefinition.DatasetInstanceStore.DATASET_FIELD,
-                                          datasetInstanceId.getEntityName())));
+                                          datasetInstanceId.getDataset())));
     return true;
   }
 
+  /**
+   * Gets all dataset specifications in a namespace. Local workflow datasets are filtered out.
+   */
   public Collection<DatasetSpecification> getAll(NamespaceId namespaceId) throws IOException {
     Predicate<DatasetSpecification> localDatasetFilter = input -> input != null
       && !Boolean.parseBoolean(input.getProperty(Constants.AppFabric.WORKFLOW_LOCAL_DATASET_PROPERTY));
@@ -112,7 +115,7 @@ public final class DatasetInstanceTable {
     Iterator<StructuredRow> iterator = table.scan(
       Range.singleton(
         ImmutableList.of(
-          Fields.stringField(StoreDefinition.DatasetInstanceStore.NAMESPACE_FIELD, namespaceId.getEntityName()))),
+          Fields.stringField(StoreDefinition.DatasetInstanceStore.NAMESPACE_FIELD, namespaceId.getNamespace()))),
       Integer.MAX_VALUE);
     List<DatasetSpecification> result = new ArrayList<>();
     while (iterator.hasNext()) {
@@ -129,14 +132,7 @@ public final class DatasetInstanceTable {
 
   public Collection<DatasetSpecification> getByTypes(NamespaceId namespaceId, Set<String> typeNames)
     throws IOException {
-    List<DatasetSpecification> filtered = Lists.newArrayList();
-
-    for (DatasetSpecification spec : getAll(namespaceId)) {
-      if (typeNames.contains(spec.getType())) {
-        filtered.add(spec);
-      }
-    }
-
-    return filtered;
+    Predicate<DatasetSpecification> filter = input -> input != null && typeNames.contains(input.getType());
+    return getAll(namespaceId, filter);
   }
 }

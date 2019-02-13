@@ -61,6 +61,7 @@ import co.cask.cdap.security.spi.authorization.AuthorizationEnforcer;
 import co.cask.cdap.spi.data.StructuredTableAdmin;
 import co.cask.cdap.spi.data.table.StructuredTableRegistry;
 import co.cask.cdap.spi.data.transaction.TransactionRunner;
+import co.cask.cdap.store.StoreDefinition;
 import co.cask.http.HttpHandler;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
@@ -133,6 +134,9 @@ public class RemoteDatasetFrameworkTest extends AbstractDatasetFrameworkTest {
     txManager = injector.getInstance(TransactionManager.class);
     txManager.startAndWait();
     transactionRunner = injector.getInstance(TransactionRunner.class);
+    StructuredTableAdmin structuredTableAdmin = injector.getInstance(StructuredTableAdmin.class);
+    StructuredTableRegistry structuredTableRegistry = injector.getInstance(StructuredTableRegistry.class);
+    StoreDefinition.createAllTables(structuredTableAdmin, structuredTableRegistry);
     InMemoryTxSystemClient txSystemClient = new InMemoryTxSystemClient(txManager);
     TransactionSystemClientService txSystemClientService = new DelegatingTransactionSystemClientService(txSystemClient);
 
@@ -158,13 +162,10 @@ public class RemoteDatasetFrameworkTest extends AbstractDatasetFrameworkTest {
 
     DatasetTypeManager typeManager = new DatasetTypeManager(cConf, locationFactory, impersonator, transactionRunner);
     DatasetInstanceManager instanceManager = new DatasetInstanceManager(transactionRunner);
-    StructuredTableAdmin structuredTableAdmin = injector.getInstance(StructuredTableAdmin.class);
-    StructuredTableRegistry structuredTableRegistry = injector.getInstance(StructuredTableRegistry.class);
     DatasetTypeService noAuthTypeService = new DefaultDatasetTypeService(typeManager, namespaceQueryAdmin,
                                                                          namespacePathLocator, cConf, impersonator,
                                                                          txSystemClientService, transactionRunner,
-                                                                         DEFAULT_MODULES, structuredTableAdmin,
-                                                                         structuredTableRegistry);
+                                                                         DEFAULT_MODULES);
     DatasetTypeService typeService = new AuthorizationDatasetTypeService(noAuthTypeService, authorizationEnforcer,
                                                                          authenticationContext);
 
@@ -181,7 +182,7 @@ public class RemoteDatasetFrameworkTest extends AbstractDatasetFrameworkTest {
 
     service = new DatasetService(cConf, discoveryService, discoveryServiceClient, metricsCollectionService,
                                  new InMemoryDatasetOpExecutor(framework), new HashSet<>(),
-                                 typeService, instanceService, structuredTableAdmin, structuredTableRegistry);
+                                 typeService, instanceService);
     // Start dataset service, wait for it to be discoverable
     service.startAndWait();
     EndpointStrategy endpointStrategy = new RandomEndpointStrategy(
