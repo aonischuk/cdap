@@ -184,7 +184,7 @@ public class DatasetTypeManager {
         Set<String> moduleDependencies = new LinkedHashSet<String>();
         for (DatasetTypeId usedType : reg.getUsedTypes()) {
           DatasetModuleMeta usedModule = datasetTypeTable.getModuleByType(usedType);
-          if (usedModule != null) {
+          if (usedModule == null) {
             throw new IllegalStateException(
               String.format("Found a null used module for type %s for while adding module %s",
                             usedType, datasetModuleId));
