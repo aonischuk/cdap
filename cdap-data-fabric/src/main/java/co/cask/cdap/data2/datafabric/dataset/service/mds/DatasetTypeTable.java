@@ -17,7 +17,6 @@
 package co.cask.cdap.data2.datafabric.dataset.service.mds;
 
 import co.cask.cdap.api.dataset.lib.CloseableIterator;
-import co.cask.cdap.data2.dataset2.lib.table.MDSKey;
 import co.cask.cdap.proto.DatasetModuleMeta;
 import co.cask.cdap.proto.DatasetTypeMeta;
 import co.cask.cdap.proto.id.DatasetModuleId;
@@ -33,17 +32,14 @@ import co.cask.cdap.spi.data.table.field.Range;
 import co.cask.cdap.store.StoreDefinition;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Ranges;
 import com.google.gson.Gson;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nullable;
@@ -70,14 +66,22 @@ public class DatasetTypeTable {
 
   private StructuredTable getTypeTable() {
     if (typeTable == null) {
-      typeTable = structuredTableContext.getTable(StoreDefinition.DatasetTypeStore.DATASET_TYPES);
+      try {
+        typeTable = structuredTableContext.getTable(StoreDefinition.DatasetTypeStore.DATASET_TYPES);
+      } catch (TableNotFoundException e) {
+        throw new RuntimeException(e);
+      }
     }
     return typeTable;
   }
 
   private StructuredTable getModuleTable() {
     if (moduleTable == null) {
-      moduleTable = structuredTableContext.getTable(StoreDefinition.DatasetTypeStore.MODULE_TYPES);
+      try {
+        moduleTable = structuredTableContext.getTable(StoreDefinition.DatasetTypeStore.MODULE_TYPES);
+      } catch (TableNotFoundException e) {
+        throw new RuntimeException(e);
+      }
     }
     return moduleTable;
   }
@@ -116,7 +120,8 @@ public class DatasetTypeTable {
   @Nullable
   public DatasetModuleMeta getModuleByType(DatasetTypeId datasetTypeId) throws IOException {
     DatasetModuleId datasetModuleId =
-      get(getTypeKey(datasetTypeId.getNamespace(), datasetTypeId.getEntityName()), getTypeTable(), DatasetModuleId.class);
+      get(getTypeKey(
+        datasetTypeId.getNamespace(), datasetTypeId.getEntityName()), getTypeTable(), DatasetModuleId.class);
 
     if (datasetModuleId == null) {
       return null;
