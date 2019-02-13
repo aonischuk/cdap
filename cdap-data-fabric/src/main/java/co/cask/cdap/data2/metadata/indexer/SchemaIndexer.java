@@ -18,6 +18,7 @@
 package co.cask.cdap.data2.metadata.indexer;
 
 import co.cask.cdap.api.data.schema.Schema;
+import co.cask.cdap.api.data.schema.SchemaWalker;
 import co.cask.cdap.data2.metadata.dataset.MetadataEntry;
 import co.cask.cdap.data2.metadata.dataset.SortInfo;
 import co.cask.cdap.spi.metadata.MetadataConstants;
@@ -25,7 +26,6 @@ import co.cask.cdap.spi.metadata.MetadataConstants;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
 
@@ -64,47 +64,8 @@ public class SchemaIndexer implements Indexer {
       return Collections.emptySet();
     }
     Set<String> indexes = new HashSet<>();
-    processSchema(indexes, schema, schema.getRecordName());
+    SchemaWalker.walk(schema, (field, subschema) -> createIndexes(indexes, subschema, field));
     return indexes;
-  }
-
-  private void processSchema(Set<String> indexes, Schema schema, @Nullable String fieldName) {
-    switch (schema.getType()) {
-      case NULL:
-        // Ignore null types
-        break;
-      case BOOLEAN:
-      case INT:
-      case LONG:
-      case FLOAT:
-      case DOUBLE:
-      case BYTES:
-      case ENUM:
-      case STRING:
-        createIndexes(indexes, schema, fieldName);
-        break;
-      case ARRAY:
-        createIndexes(indexes, schema, fieldName);
-        processSchema(indexes, schema.getComponentSchema(), schema.getComponentSchema().getRecordName());
-        break;
-      case MAP:
-        createIndexes(indexes, schema, fieldName);
-        Map.Entry<Schema, Schema> mapSchema = schema.getMapSchema();
-        processSchema(indexes, mapSchema.getKey(), mapSchema.getKey().getRecordName());
-        processSchema(indexes, mapSchema.getValue(), mapSchema.getValue().getRecordName());
-        break;
-      case RECORD:
-        createIndexes(indexes, schema, fieldName);
-        for (Schema.Field field : schema.getFields()) {
-          processSchema(indexes, field.getSchema(), field.getName());
-        }
-        break;
-      case UNION:
-        createIndexes(indexes, schema, fieldName);
-        for (Schema us : schema.getUnionSchemas()) {
-          processSchema(indexes, us, us.getRecordName());
-        }
-    }
   }
 
   private void createIndexes(Set<String> indexes, Schema schema, @Nullable String fieldName) {
@@ -121,7 +82,6 @@ public class SchemaIndexer implements Indexer {
     }
     return schema.getType().toString();
   }
-
 
   private Set<String> addKeyValueIndexes(String key, Set<String> indexes) {
     Set<String> indexesWithKeyValue = new HashSet<>(indexes);
