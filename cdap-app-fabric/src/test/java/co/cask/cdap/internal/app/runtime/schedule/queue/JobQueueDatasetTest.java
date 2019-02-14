@@ -21,6 +21,7 @@ import co.cask.cdap.api.dataset.DatasetProperties;
 import co.cask.cdap.api.dataset.lib.CloseableIterator;
 import co.cask.cdap.api.dataset.lib.PartitionKey;
 import co.cask.cdap.api.dataset.module.DatasetModule;
+import co.cask.cdap.api.schedule.Trigger;
 import co.cask.cdap.common.conf.CConfiguration;
 import co.cask.cdap.common.conf.Constants;
 import co.cask.cdap.common.guice.ConfigModule;
@@ -40,6 +41,7 @@ import co.cask.cdap.internal.app.runtime.schedule.ProgramScheduleMeta;
 import co.cask.cdap.internal.app.runtime.schedule.ProgramScheduleRecord;
 import co.cask.cdap.internal.app.runtime.schedule.ProgramScheduleStatus;
 import co.cask.cdap.internal.app.runtime.schedule.store.Schedulers;
+import co.cask.cdap.internal.app.runtime.schedule.trigger.OrTriggerBuilder;
 import co.cask.cdap.internal.app.runtime.schedule.trigger.PartitionTrigger;
 import co.cask.cdap.internal.app.runtime.schedule.trigger.TimeTrigger;
 import co.cask.cdap.internal.schedule.constraint.Constraint;
@@ -80,6 +82,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Tests for {@link JobQueueDataset}.
@@ -93,6 +101,7 @@ public class JobQueueDatasetTest {
   private static final ApplicationId APP_ID = TEST_NS.app("app1");
   private static final WorkflowId WORKFLOW_ID = APP_ID.workflow("wf1");
   private static final DatasetId DATASET_ID = TEST_NS.dataset("pfs1");
+  private static final DatasetId DATASET2_ID = TEST_NS.dataset("pfs2");
 
   private static final ProgramSchedule SCHED1 = new ProgramSchedule("SCHED1", "one partition schedule", WORKFLOW_ID,
                                                                     ImmutableMap.of("prop3", "abc"),
@@ -101,6 +110,14 @@ public class JobQueueDatasetTest {
   private static final ProgramSchedule SCHED2 = new ProgramSchedule("SCHED2", "time schedule", WORKFLOW_ID,
                                                                     ImmutableMap.of("prop3", "abc"),
                                                                     new TimeTrigger("* * * * *"),
+                                                                    ImmutableList.<Constraint>of());
+  private static final Trigger TRIGGER =
+    new OrTriggerBuilder(new PartitionTrigger(DATASET_ID, 6),
+                         new PartitionTrigger(DATASET2_ID, 1))
+      .build(APP_ID.getNamespace(), APP_ID.getApplication(), APP_ID.getVersion());
+  private static final ProgramSchedule SCHED3 = new ProgramSchedule("SCHED3", "three partitions schedule", WORKFLOW_ID,
+                                                                    ImmutableMap.of("prop1", "abc1"),
+                                                                    TRIGGER,
                                                                     ImmutableList.<Constraint>of());
 
   private static final Job SCHED1_JOB = new SimpleJob(SCHED1, System.currentTimeMillis(),
@@ -113,6 +130,7 @@ public class JobQueueDatasetTest {
   private static TransactionManager txManager;
   private static TransactionExecutor txExecutor;
   private static JobQueueDataset jobQueue;
+  private static DatasetFramework datasetFramework;
 
   @BeforeClass
   public static void beforeClass() throws IOException, DatasetManagementException {
@@ -142,7 +160,7 @@ public class JobQueueDatasetTest {
       }
     );
 
-    DatasetFramework datasetFramework = injector.getInstance(DatasetFramework.class);
+    datasetFramework = injector.getInstance(DatasetFramework.class);
     DatasetsUtil.createIfNotExists(datasetFramework, Schedulers.JOB_QUEUE_DATASET_ID,
                                    JobQueueDataset.class.getName(),
                                    DatasetProperties.builder().
@@ -366,6 +384,122 @@ public class JobQueueDatasetTest {
         Assert.assertEquals(ImmutableList.of(notification), jobQueue.getJob(SCHED1_JOB.getJobKey()).getNotifications());
       }
     });
+  }
+
+  @Test
+  public void testAddConcurrentNotifications() throws Exception {
+    txExecutor.execute(() -> {
+      // should be 0 jobs in the JobQueue to begin with
+      Assert.assertEquals(0, getAllJobs(jobQueue, false).size());
+    });
+
+     // Add concurrent notifications to SCHED3
+    int numThreads = 5;
+    addConcurrentNotifications(numThreads, SCHED3, (Callable<Void>) () -> null);
+
+    // There should be only one job at the end with all the notifications attached to it
+    Set<Job> actualJobs = txExecutor.execute(() -> toSet(jobQueue.getJobsForSchedule(SCHED3.getScheduleId())));
+    Assert.assertEquals(1, actualJobs.size());
+
+    List<Notification> expectedNotifications = new ArrayList<>();
+    for (int i = 0; i < numThreads; i++) {
+      expectedNotifications.add(Notification.forPartitions(DATASET_ID, ImmutableList.of()));
+    }
+    Job expectedJob = new SimpleJob(SCHED3, actualJobs.iterator().next().getCreationTime(),
+                                    expectedNotifications,
+                                    Job.State.PENDING_TRIGGER, 0L);
+    Assert.assertEquals(Collections.singleton(expectedJob), actualJobs);
+  }
+
+  private void addNotificationToSchedule(ProgramSchedule programSchedule) throws Exception {
+    try (JobQueueDataset jobQueue = datasetFramework.getDataset(Schedulers.JOB_QUEUE_DATASET_ID,
+                                                                Collections.emptyMap(), null)) {
+      Assert.assertNotNull(jobQueue);
+      TransactionExecutor txExecutor = new DynamicTransactionExecutorFactory(new InMemoryTxSystemClient(txManager))
+        .createExecutor(Collections.singleton(jobQueue));
+      txExecutor.execute(() -> {
+        // Construct a partition notification with DATASET_ID
+        Notification notification = Notification.forPartitions(DATASET_ID, ImmutableList.of());
+        jobQueue.addNotification(
+          new ProgramScheduleRecord(programSchedule, new ProgramScheduleMeta(ProgramScheduleStatus.SCHEDULED, 0L)),
+          notification);
+      });
+    }
+  }
+
+  private <T> T addConcurrentNotifications(int numThreads, ProgramSchedule schedule,
+                                           Callable<T> concurrentCallable) throws Exception {
+    ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
+    CountDownLatch startLatch = new CountDownLatch(1);
+    CountDownLatch doneLatch = new CountDownLatch(numThreads);
+    try {
+      for (int i = 0; i < numThreads; ++i) {
+        executorService.submit(() -> {
+          try {
+            startLatch.await();
+            addNotificationToSchedule(schedule);
+            doneLatch.countDown();
+          } catch (Exception e) {
+            throw new RuntimeException(String.format("Error adding notification to schedule %s", SCHED3), e);
+          }
+        });
+      }
+
+      startLatch.countDown();
+      T result = concurrentCallable.call();
+      doneLatch.await(30, TimeUnit.SECONDS);
+      return result;
+    } finally {
+      executorService.shutdown();
+    }
+  }
+
+  @Test
+  public void testConcurrentDeleteUpdate() throws Exception {
+    Job expectedJob = new SimpleJob(SCHED3, System.currentTimeMillis(),
+                                    Collections.emptyList(),
+                                    Job.State.PENDING_TRIGGER, 0L);
+    txExecutor.execute(() -> {
+      // should be 0 jobs in the JobQueue to begin with
+      Assert.assertEquals(0, getAllJobs(jobQueue, false).size());
+      // Add a job for SCHED3
+      jobQueue.put(expectedJob);
+    });
+
+    // Add concurrent notifications to SCHED3
+    int numThreads = 15;
+    Integer numTries = addConcurrentNotifications(numThreads, SCHED3, () -> {
+      // While the concurrent updates are happening, mark SCHED3 for deletion
+      AtomicInteger tries = new AtomicInteger(0);
+      txExecutor.execute(() -> {
+        tries.incrementAndGet();
+        jobQueue.markJobsForDeletion(SCHED3.getScheduleId(), System.currentTimeMillis());
+      });
+      return tries.get();
+    });
+
+    // Assert that there was no conflict when running markJobsForDeletion.
+    // There should be only one try if there was no conflict
+    Assert.assertEquals(1, numTries.intValue());
+
+    // There should be only one job for SCHED3 marked for deletion,
+    // and at most one active job for SCHED3 (0 active jobs if markJobsForDeletion happens after all notifications
+    // are applied, or 1 job otherwise)
+    Set<Job> actualJobs = txExecutor.execute(() -> getAllJobs(jobQueue, true));
+    Assert.assertFalse(actualJobs.isEmpty());
+    int deletedJobs = 0;
+    int activeJobs = 0;
+    for (Job actualJob : actualJobs) {
+      if (actualJob.getSchedule().equals(SCHED3)) {
+        if (actualJob.isToBeDeleted()) {
+          deletedJobs++;
+        } else {
+          activeJobs++;
+        }
+      }
+    }
+    Assert.assertEquals(1, deletedJobs);
+    Assert.assertTrue(activeJobs <= 1);
   }
 
   @Test
