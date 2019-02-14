@@ -32,12 +32,17 @@ import javax.annotation.Nullable;
 /**
  * An {@link Indexer} to generate indexes for a {@link Schema}
  */
-public class SchemaIndexer implements Indexer {
+public class SchemaIndexer extends DefaultValueIndexer {
 
   @Override
   public Set<String> getIndexes(MetadataEntry entry) {
-    Set<String> indexes = createIndexes(getSchema(entry.getValue()));
-    return addKeyValueIndexes(entry.getKey(), indexes);
+    try {
+      Set<String> indexes = createIndexes(getSchema(entry.getValue()));
+      return addKeyValueIndexes(entry.getKey(), indexes);
+    } catch (IOException e) {
+      // this happens if the schema is invalid - fall back to default indexer
+      return super.getIndexes(entry);
+    }
   }
 
   @Override
@@ -45,18 +50,14 @@ public class SchemaIndexer implements Indexer {
     return SortInfo.SortOrder.WEIGHTED;
   }
 
-  private Schema getSchema(String schemaStr) {
+  private Schema getSchema(String schemaStr) throws IOException {
     if (schemaStr.startsWith("\"") && schemaStr.endsWith("\"")) {
       // simple type in lower case
       schemaStr = schemaStr.substring(1, schemaStr.length() - 1);
       return Schema.of(Schema.Type.valueOf(schemaStr.toUpperCase()));
     }
     // otherwise its a json
-    try {
-      return Schema.parseJson(schemaStr);
-    } catch (IOException e) {
-      throw new IllegalArgumentException(e);
-    }
+    return Schema.parseJson(schemaStr);
   }
 
   private Set<String> createIndexes(Schema schema) {
@@ -88,6 +89,7 @@ public class SchemaIndexer implements Indexer {
     for (String index : indexes) {
       indexesWithKeyValue.add(key + MetadataConstants.KEYVALUE_SEPARATOR + index);
     }
+    indexesWithKeyValue.add(MetadataConstants.PROPERTIES_KEY + MetadataConstants.KEYVALUE_SEPARATOR + key);
     return indexesWithKeyValue;
   }
 }
